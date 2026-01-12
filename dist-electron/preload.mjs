@@ -1,0 +1,1 @@
+"use strict";const n=require("electron");n.contextBridge.exposeInMainWorld("merlin",{on(e,r){const i=(o,...t)=>r(o,...t);return n.ipcRenderer.on(e,i),()=>{n.ipcRenderer.removeListener(e,i)}},off(e,r){n.ipcRenderer.removeListener(e,r)},invoke(e,...r){return n.ipcRenderer.invoke(e,...r)}});

@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-dragon-900 text-merlin-50 overflow-hidden;
+  }
+}
+
+/* Custom scrollbar for PDF */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-dragon-900;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-merlin-900 rounded;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-merlin-500;
+}
