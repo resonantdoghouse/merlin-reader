@@ -65,9 +65,11 @@ function App() {
         alert(`Discovered ${count} tomes in the specified realm.`);
         loadLibrary();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error during scanning:", err);
-      alert("An error occurred while scanning the kingdom.");
+      alert(
+        `An error occurred while scanning the kingdom: ${err.message || err}`
+      );
     }
   };
 

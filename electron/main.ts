@@ -17,8 +17,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // │ ├── main.js
 // │ └── preload.js
 //
-process.env.DIST = path.join(__dirname, '../dist')
-process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
+const DIST = path.join(__dirname, '../dist')
+const VITE_PUBLIC = app.isPackaged ? DIST : path.join(__dirname, '../public')
+process.env.DIST = DIST
+process.env.VITE_PUBLIC = VITE_PUBLIC
 
 let win: BrowserWindow | null
 
@@ -27,11 +29,12 @@ const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 function createWindow() {
   win = new BrowserWindow({
     title: 'Merlin Reader',
-    icon: path.join(process.env.VITE_PUBLIC, 'merlin-icon.png'), // Placeholder
+    icon: path.join(VITE_PUBLIC, 'merlin-icon.png'), // Placeholder
     width: 1200,
     height: 800,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.mjs'),
+      webSecurity: false
     },
     // Dark theme frame
     backgroundColor: '#1a1a1a',
@@ -46,9 +49,11 @@ function createWindow() {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {
     // win.loadFile('dist/index.html')
-    win.loadFile(path.join(process.env.DIST, 'index.html'))
+    win.loadFile(path.join(DIST, 'index.html'))
   }
 }
+
+app.disableHardwareAcceleration()
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -64,12 +69,22 @@ app.on('activate', () => {
 })
 
 app.whenReady().then(() => {
-  app.disableHardwareAcceleration()
-  initDB()
+
+  try {
+    initDB()
+  } catch (err) {
+    console.error('Failed to initialize database:', err)
+  }
+
   createWindow()
   
   ipcMain.handle('get-library', () => {
-    return getLibrary()
+    try {
+      return getLibrary()
+    } catch (err) {
+      console.error('Failed to get library:', err)
+      return []
+    }
   })
 
   ipcMain.handle('add-book', (event, filepath) => {
@@ -90,52 +105,68 @@ app.whenReady().then(() => {
   })
   
   ipcMain.handle('scan-folder', async (event, folderPath) => {
-    const fs = await import('fs/promises')
-    
-    async function getFiles(dir: string): Promise<string[]> {
-      try {
-          const dirents = await fs.readdir(dir, { withFileTypes: true });
-          const files = await Promise.all(dirents.map((dirent) => {
-            const res = path.resolve(dir, dirent.name);
-            return dirent.isDirectory() ? getFiles(res) : res;
-          }));
-          return Array.prototype.concat(...files);
-      } catch (e) {
-          console.error("Error reading dir:", dir, e);
-          return [];
-      }
-    }
-
+    console.log('Main process: Starting scan-folder for:', folderPath)
     try {
-        const files = await getFiles(folderPath)
-        const pdfs = files.filter(f => typeof f === 'string' && f.toLowerCase().endsWith('.pdf'))
-        
-        let count = 0
-        for (const pdf of pdfs) {
-            const filename = path.basename(pdf)
-            // defaults
-            try {
-                addBook(pdf, filename)
-                count++
-            } catch (err) {
-                console.error("Failed to add book:", pdf, err)
-            }
+      const fs = await import('fs/promises')
+      
+      async function getFiles(dir: string): Promise<string[]> {
+        try {
+            const dirents = await fs.readdir(dir, { withFileTypes: true });
+            const files = await Promise.all(dirents.map((dirent) => {
+              const res = path.resolve(dir, dirent.name);
+              return dirent.isDirectory() ? getFiles(res) : res;
+            }));
+            return Array.prototype.concat(...files);
+        } catch (e) {
+            console.error("Error reading dir:", dir, e);
+            return [];
         }
-        return count
+      }
+
+      const files = await getFiles(folderPath)
+      console.log(`Main process: Found ${files.length} files`)
+      const pdfs = files.filter(f => typeof f === 'string' && f.toLowerCase().endsWith('.pdf'))
+      console.log(`Main process: Found ${pdfs.length} PDFs`)
+      
+      let count = 0
+      for (const pdf of pdfs) {
+          const filename = path.basename(pdf)
+          // defaults
+          try {
+              addBook(pdf, filename)
+              count++
+          } catch (err) {
+              console.error("Failed to add book:", pdf, err)
+          }
+      }
+      return count
     } catch (e) {
         console.error("Scan error", e)
-        return 0
+        throw e
     }
   })
   
   ipcMain.handle('select-folder', async () => {
-    const { dialog } = await import('electron')
-    const result = await dialog.showOpenDialog(win!, {
-      properties: ['openDirectory']
-    })
-    if (result.canceled || result.filePaths.length === 0) {
+    console.log('Main process: Handling select-folder request')
+    if (!win) {
+      console.error('Main process: Window is not available for dialog')
       return null
     }
-    return result.filePaths[0]
+    
+    try {
+      const { dialog } = await import('electron')
+      const result = await dialog.showOpenDialog(win, {
+        properties: ['openDirectory']
+      })
+      console.log('Main process: Dialog result:', result)
+      
+      if (result.canceled || result.filePaths.length === 0) {
+        return null
+      }
+      return result.filePaths[0]
+    } catch (error) {
+      console.error('Main process: Error in select-folder:', error)
+      throw error
+    }
   })
 })
