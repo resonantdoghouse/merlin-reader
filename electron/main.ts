@@ -3,6 +3,10 @@ import path from 'node:path'
 import os from 'node:os'
 import { initDB, getLibrary, addBook, removeBook, updateProgress, updateBookMeta } from './db'
 
+import { fileURLToPath } from 'node:url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
 // The built directory structure
 //
 // ├─┬─ dist
@@ -60,6 +64,7 @@ app.on('activate', () => {
 })
 
 app.whenReady().then(() => {
+  app.disableHardwareAcceleration()
   initDB()
   createWindow()
   
@@ -88,24 +93,33 @@ app.whenReady().then(() => {
     const fs = await import('fs/promises')
     
     async function getFiles(dir: string): Promise<string[]> {
-      const dirents = await fs.readdir(dir, { withFileTypes: true });
-      const files = await Promise.all(dirents.map((dirent) => {
-        const res = path.resolve(dir, dirent.name);
-        return dirent.isDirectory() ? getFiles(res) : res;
-      }));
-      return Array.prototype.concat(...files);
+      try {
+          const dirents = await fs.readdir(dir, { withFileTypes: true });
+          const files = await Promise.all(dirents.map((dirent) => {
+            const res = path.resolve(dir, dirent.name);
+            return dirent.isDirectory() ? getFiles(res) : res;
+          }));
+          return Array.prototype.concat(...files);
+      } catch (e) {
+          console.error("Error reading dir:", dir, e);
+          return [];
+      }
     }
 
     try {
         const files = await getFiles(folderPath)
-        const pdfs = files.filter(f => f.toLowerCase().endsWith('.pdf'))
+        const pdfs = files.filter(f => typeof f === 'string' && f.toLowerCase().endsWith('.pdf'))
         
         let count = 0
         for (const pdf of pdfs) {
             const filename = path.basename(pdf)
             // defaults
-            addBook(pdf, filename)
-            count++
+            try {
+                addBook(pdf, filename)
+                count++
+            } catch (err) {
+                console.error("Failed to add book:", pdf, err)
+            }
         }
         return count
     } catch (e) {

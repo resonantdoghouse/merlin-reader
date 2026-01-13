@@ -58,14 +58,16 @@ function App() {
   };
 
   const handleAddFolder = async () => {
-    const folder = await window.merlin.invoke("select-folder");
-    if (folder) {
-      // Scanning... we could show a spinner.
-      // Backend 'scan-folder' waits until done.
-      // It returns count.
-      const count = await window.merlin.invoke("scan-folder", folder);
-      alert(`Discovered ${count} tomes in the specified realm.`);
-      loadLibrary();
+    try {
+      const folder = await window.merlin.invoke("select-folder");
+      if (folder) {
+        const count = await window.merlin.invoke("scan-folder", folder);
+        alert(`Discovered ${count} tomes in the specified realm.`);
+        loadLibrary();
+      }
+    } catch (err) {
+      console.error("Error during scanning:", err);
+      alert("An error occurred while scanning the kingdom.");
     }
   };
 

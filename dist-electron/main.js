@@ -1,10 +1,14 @@
-import { app as i, BrowserWindow as _, ipcMain as a } from "electron";
-import n from "node:path";
-import R from "better-sqlite3";
-import b from "path";
-const h = b.join(i.getPath("userData"), "merlin-library.db"), l = new R(h);
-function D() {
-  l.exec(`
+import { app, BrowserWindow, ipcMain } from "electron";
+import path$1 from "node:path";
+import Database from "better-sqlite3";
+import path from "path";
+import { fileURLToPath } from "node:url";
+let db = null;
+function initDB() {
+  const dbPath = path.join(app.getPath("userData"), "merlin-library.db");
+  db = new Database(dbPath);
+  db.pragma("journal_mode = WAL");
+  db.exec(`
     CREATE TABLE IF NOT EXISTS library_books (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT,
@@ -18,85 +22,145 @@ function D() {
     )
   `);
 }
-function m(t, e, r = 0) {
-  return l.prepare(`
+function getDB() {
+  if (!db) {
+    throw new Error("Database not initialized");
+  }
+  return db;
+}
+function addBook(filepath, title, total_pages = 0) {
+  const stmt = getDB().prepare(`
     INSERT INTO library_books (filepath, title, total_pages)
     VALUES (?, ?, ?)
     ON CONFLICT(filepath) DO UPDATE SET
     is_removed = 0,
     title = excluded.title
-  `).run(t, e, r);
+  `);
+  return stmt.run(filepath, title, total_pages);
 }
-function w() {
-  return l.prepare("SELECT * FROM library_books WHERE is_removed = 0 ORDER BY last_read_at DESC, added_at DESC").all();
+function getLibrary() {
+  const stmt = getDB().prepare("SELECT * FROM library_books WHERE is_removed = 0 ORDER BY last_read_at DESC, added_at DESC");
+  return stmt.all();
 }
-function I(t) {
-  return l.prepare("UPDATE library_books SET is_removed = 1 WHERE id = ?").run(t);
+function removeBook(id) {
+  const stmt = getDB().prepare("UPDATE library_books SET is_removed = 1 WHERE id = ?");
+  return stmt.run(id);
 }
-function g(t, e) {
-  return l.prepare(`
+function updateProgress(id, page) {
+  const stmt = getDB().prepare(`
     UPDATE library_books
     SET last_read_page = ?, last_read_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(e, t);
+  `);
+  return stmt.run(page, id);
 }
-function v(t, e) {
-  return l.prepare("UPDATE library_books SET total_pages = ? WHERE id = ?").run(e, t);
+function updateBookMeta(id, total_pages) {
+  const stmt = getDB().prepare("UPDATE library_books SET total_pages = ? WHERE id = ?");
+  return stmt.run(total_pages, id);
 }
-process.env.DIST = n.join(__dirname, "../dist");
-process.env.VITE_PUBLIC = i.isPackaged ? process.env.DIST : n.join(__dirname, "../public");
-let s;
-const u = process.env.VITE_DEV_SERVER_URL;
-function f() {
-  s = new _({
+const __dirname$1 = path$1.dirname(fileURLToPath(import.meta.url));
+process.env.DIST = path$1.join(__dirname$1, "../dist");
+process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path$1.join(__dirname$1, "../public");
+let win;
+const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
+function createWindow() {
+  win = new BrowserWindow({
     title: "Merlin Reader",
-    icon: n.join(process.env.VITE_PUBLIC, "merlin-icon.png"),
+    icon: path$1.join(process.env.VITE_PUBLIC, "merlin-icon.png"),
     // Placeholder
     width: 1200,
     height: 800,
     webPreferences: {
-      preload: n.join(__dirname, "preload.js")
+      preload: path$1.join(__dirname$1, "preload.js")
     },
     // Dark theme frame
     backgroundColor: "#1a1a1a"
-  }), s.webContents.on("did-finish-load", () => {
-    s?.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
-  }), u ? s.loadURL(u) : s.loadFile(n.join(process.env.DIST, "index.html"));
+  });
+  win.webContents.on("did-finish-load", () => {
+    win?.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
+  });
+  if (VITE_DEV_SERVER_URL) {
+    win.loadURL(VITE_DEV_SERVER_URL);
+  } else {
+    win.loadFile(path$1.join(process.env.DIST, "index.html"));
+  }
 }
-i.on("window-all-closed", () => {
-  process.platform !== "darwin" && (i.quit(), s = null);
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+    win = null;
+  }
 });
-i.on("activate", () => {
-  _.getAllWindows().length === 0 && f();
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
 });
-i.whenReady().then(() => {
-  D(), f(), a.handle("get-library", () => w()), a.handle("add-book", (t, e) => {
-    const r = n.basename(e);
-    return m(e, r);
-  }), a.handle("remove-book", (t, e) => I(e)), a.handle("update-progress", (t, e, r) => g(e, r)), a.handle("update-meta", (t, e, r) => v(e, r)), a.handle("scan-folder", async (t, e) => {
-    const r = await import("fs/promises");
-    async function p(d) {
-      const T = await r.readdir(d, { withFileTypes: !0 }), c = await Promise.all(T.map((o) => {
-        const E = n.resolve(d, o.name);
-        return o.isDirectory() ? p(E) : E;
-      }));
-      return Array.prototype.concat(...c);
+app.whenReady().then(() => {
+  app.disableHardwareAcceleration();
+  initDB();
+  createWindow();
+  ipcMain.handle("get-library", () => {
+    return getLibrary();
+  });
+  ipcMain.handle("add-book", (event, filepath) => {
+    const filename = path$1.basename(filepath);
+    return addBook(filepath, filename);
+  });
+  ipcMain.handle("remove-book", (event, id) => {
+    return removeBook(id);
+  });
+  ipcMain.handle("update-progress", (event, id, page) => {
+    return updateProgress(id, page);
+  });
+  ipcMain.handle("update-meta", (event, id, totalPages) => {
+    return updateBookMeta(id, totalPages);
+  });
+  ipcMain.handle("scan-folder", async (event, folderPath) => {
+    console.log("Scanning folder:", folderPath);
+    const fs = await import("fs/promises");
+    async function getFiles(dir) {
+      try {
+        const dirents = await fs.readdir(dir, { withFileTypes: true });
+        const files = await Promise.all(dirents.map((dirent) => {
+          const res = path$1.resolve(dir, dirent.name);
+          return dirent.isDirectory() ? getFiles(res) : res;
+        }));
+        return Array.prototype.concat(...files);
+      } catch (e) {
+        console.error("Error reading dir:", dir, e);
+        return [];
+      }
     }
     try {
-      const T = (await p(e)).filter((o) => o.toLowerCase().endsWith(".pdf"));
-      let c = 0;
-      for (const o of T) {
-        const E = n.basename(o);
-        m(o, E), c++;
+      const files = await getFiles(folderPath);
+      console.log(`Found ${files.length} files total.`);
+      const pdfs = files.filter((f) => typeof f === "string" && f.toLowerCase().endsWith(".pdf"));
+      console.log(`Found ${pdfs.length} PDFs.`);
+      let count = 0;
+      for (const pdf of pdfs) {
+        const filename = path$1.basename(pdf);
+        try {
+          addBook(pdf, filename);
+          count++;
+        } catch (err) {
+          console.error("Failed to add book:", pdf, err);
+        }
       }
-      return c;
-    } catch (d) {
-      return console.error("Scan error", d), 0;
+      return count;
+    } catch (e) {
+      console.error("Scan error", e);
+      return 0;
     }
-  }), a.handle("select-folder", async () => {
-    const { dialog: t } = await import("electron"), e = await t.showOpenDialog(s, {
+  });
+  ipcMain.handle("select-folder", async () => {
+    const { dialog } = await import("electron");
+    const result = await dialog.showOpenDialog(win, {
       properties: ["openDirectory"]
     });
-    return e.canceled || e.filePaths.length === 0 ? null : e.filePaths[0];
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+    return result.filePaths[0];
   });
 });
