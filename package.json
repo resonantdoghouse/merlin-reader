@@ -9,7 +9,29 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "rebuild": "electron-rebuild"
+    "rebuild": "electron-rebuild",
+    "package": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.merlin.reader",
+    "productName": "Merlin Reader",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   },
   "dependencies": {
     "better-sqlite3": "^12.6.0",
