@@ -10,15 +10,29 @@ Merlin Reader is a powerful, magical Desktop Application for managing and readin
 
 - **Drag & Drop**: Simply cast your scrolls into the lake (drag PDFs onto the window) to add them to your collection.
 - **Kingdom Scan**: Scan entire folders to discovering hidden tomes.
+- **Organization**: Sort your library by Title, Date Added, or Recently Read status.
+- **Search**: Quickly find specific spells using the search bar.
+- **View Options**: Toggle between Grid and List views, and resize thumbnails (Small, Medium, Large).
 - **Persistence**: The library remembers where you left off, archiving your progress in the Great Dragon's keep (`SQLite`).
-- **Most Recent Scroll**: The application highlights your most recently consulted text for quick access.
+- **Random Tome**: Let destiny choose your next read with the "Random Book" feature.
 
 ### ⚔️ The Reader (`Excalibur`)
 
 - **Seamless Reading**: High-fidelity PDF rendering using `react-pdf`.
 - **Progress Tracking**: Your progress is saved automatically as you turn each page.
-- **Dark Mode (`Morgana's Shadow`)**: Toggle between the light of reading (Day mode) and the shadow (Dark/Inverted mode) for late-night study sessions.
-- **Zoom & Navigation**: Inspect the fine print of your spells with intuition controls.
+- **Magical Lighting**: Toggle between Day mode and **Morgana's Shadow** (Dark Mode with high contrast and hue rotation).
+- **Navigation Controls**:
+  - Keyboard arrows (Left/Right)
+  - On-screen buttons
+  - **Auto-Advance**: Automatically turn the page when scrolling to the bottom.
+- **Review Tools**:
+  - **Rotation**: Rotate pages for easier reading of sideways charts.
+  - **Zoom**: Scale the text to your liking.
+
+### 🛡️ Security & Architecture
+
+- **Secure Protocol**: Uses a custom `media://` protocol to safely load local files without compromising security (`webSecurity: true`).
+- **Robust Path Handling**: Compatible with both standard and magical (Windows) file paths.
 
 ## Technologies (The Old Religion) 🧪
 
