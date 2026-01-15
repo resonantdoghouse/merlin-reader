@@ -1,6 +1,14 @@
 import { useState, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
-import { ArrowLeft, ChevronLeft, ChevronRight, Moon, Sun } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Moon,
+  Sun,
+  Settings,
+  RotateCw,
+} from "lucide-react";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -29,11 +37,48 @@ export function ExcaliburReader({
     book.last_read_page || 1
   );
   const [scale, setScale] = useState(1.0);
+  const [rotation, setRotation] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+  const [autoAdvance, setAutoAdvance] = useState(false);
 
   // Update backend when page changes
   useEffect(() => {
     window.merlin.invoke("update-progress", book.id, pageNumber);
   }, [pageNumber, book.id]);
+
+  // Keyboard Navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") {
+        setPageNumber((prev) => Math.min(numPages || Infinity, prev + 1));
+      } else if (e.key === "ArrowLeft") {
+        setPageNumber((prev) => Math.max(1, prev - 1));
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [numPages]);
+
+  // Improved Scroll Handler with debounce/lock could go here,
+  // but for "Next Page on Scroll", effectively we want:
+  // If user hits bottom, go to next page AND scroll to top.
+
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!autoAdvance) return;
+    const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
+    if (scrollTop + clientHeight >= scrollHeight - 20) {
+      // Only advance if enough time has passed or we are not already advancing?
+      // Simplest: Just advance.
+      if (pageNumber < (numPages || 0)) {
+        setPageNumber((p) => p + 1);
+        // And reset scroll is handled by React layout updates usually,
+        // but we might need to force it.
+        // The container will stay same, so we should scroll to top.
+        e.currentTarget.scrollTop = 0;
+      }
+    }
+  };
 
   // Update total pages in DB if not set
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
@@ -86,6 +131,25 @@ export function ExcaliburReader({
         </div>
 
         <div className="flex items-center gap-4">
+          {/* Settings Toggle */}
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className={`p-2 rounded-full hover:bg-gray-500/20 ${
+              showSettings ? "bg-merlin-500 text-white" : ""
+            }`}
+            title="Reader Settings"
+          >
+            <Settings size={20} />
+          </button>
+
+          <button
+            onClick={() => setRotation((r) => (r + 90) % 360)}
+            className="p-2 rounded-full hover:bg-gray-500/20"
+            title="Rotate Clockwise"
+          >
+            <RotateCw size={20} />
+          </button>
+
           <button
             onClick={toggleDarkMode}
             className="p-2 rounded-full hover:bg-gray-500/20"
@@ -113,14 +177,52 @@ export function ExcaliburReader({
         </div>
       </div>
 
+      {/* Settings Panel */}
+      {showSettings && (
+        <div
+          className={`absolute top-20 right-4 p-4 rounded-xl shadow-2xl border w-64 z-20 ${
+            isDarkMode
+              ? "bg-gray-800 border-gray-700"
+              : "bg-white border-gray-200"
+          }`}
+        >
+          <h3 className="font-bold mb-4 flex items-center gap-2">
+            <Settings size={16} /> Preferences
+          </h3>
+
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm">Auto-advance on scroll</span>
+            <button
+              onClick={() => setAutoAdvance(!autoAdvance)}
+              className={`w-10 h-5 rounded-full transition-colors relative ${
+                autoAdvance ? "bg-merlin-500" : "bg-gray-400"
+              }`}
+            >
+              <div
+                className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${
+                  autoAdvance ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+          <p className="text-xs opacity-60">
+            Automatically goes to the next page when you scroll to the bottom.
+          </p>
+        </div>
+      )}
+
       {/* Reader Area */}
-      <div className="flex-1 overflow-auto flex justify-center p-8">
+      <div
+        className="flex-1 overflow-auto flex justify-center p-8 scroll-smooth"
+        onScroll={onScroll}
+      >
         <Document
           file={`file://${book.filepath}`}
           onLoadSuccess={onDocumentLoadSuccess}
-          className={`shadow-2xl ${
+          className={`shadow-2xl transition-transform duration-300 ${
             isDarkMode ? "brightness-[0.8] contrast-[1.2]" : ""
           }`}
+          rotate={rotation}
         >
           <Page
             pageNumber={pageNumber}

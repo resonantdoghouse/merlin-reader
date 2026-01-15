@@ -20,6 +20,7 @@ interface Window {
     invoke(channel: 'remove-book', id: number): Promise<void>;
     invoke(channel: 'update-progress', id: number, page: number): Promise<void>;
     invoke(channel: 'update-meta', id: number, totalPages: number): Promise<void>;
+    invoke(channel: 'update-cover', id: number, coverImage: string): Promise<void>;
     invoke(channel: 'select-folder'): Promise<string | null>;
     on(channel: string, listener: (...args: any[]) => void): () => void;
     off(channel: string, listener: (...args: any[]) => void): void;

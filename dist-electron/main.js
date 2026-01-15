@@ -58,6 +58,10 @@ function updateBookMeta(id, total_pages) {
   const stmt = getDB().prepare("UPDATE library_books SET total_pages = ? WHERE id = ?");
   return stmt.run(total_pages, id);
 }
+function updateBookCover(id, cover_image) {
+  const stmt = getDB().prepare("UPDATE library_books SET cover_image = ? WHERE id = ?");
+  return stmt.run(cover_image, id);
+}
 const __dirname$1 = path$1.dirname(fileURLToPath(import.meta.url));
 const DIST = path$1.join(__dirname$1, "../dist");
 const VITE_PUBLIC = app.isPackaged ? DIST : path$1.join(__dirname$1, "../public");
@@ -127,6 +131,9 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("update-meta", (event, id, totalPages) => {
     return updateBookMeta(id, totalPages);
+  });
+  ipcMain.handle("update-cover", (event, id, coverImage) => {
+    return updateBookCover(id, coverImage);
   });
   ipcMain.handle("scan-folder", async (event, folderPath) => {
     console.log("Main process: Starting scan-folder for:", folderPath);

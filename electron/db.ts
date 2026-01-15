@@ -65,3 +65,8 @@ export function updateBookMeta(id: number, total_pages: number) {
     const stmt = getDB().prepare('UPDATE library_books SET total_pages = ? WHERE id = ?');
     return stmt.run(total_pages, id);
 }
+
+export function updateBookCover(id: number, cover_image: string) {
+    const stmt = getDB().prepare('UPDATE library_books SET cover_image = ? WHERE id = ?');
+    return stmt.run(cover_image, id);
+}

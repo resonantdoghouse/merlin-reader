@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
 import os from 'node:os'
-import { initDB, getLibrary, addBook, removeBook, updateProgress, updateBookMeta } from './db'
+import { initDB, getLibrary, addBook, removeBook, updateProgress, updateBookMeta, updateBookCover } from './db'
 
 import { fileURLToPath } from 'node:url'
 
@@ -102,6 +102,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('update-meta', (event, id, totalPages) => {
     return updateBookMeta(id, totalPages)
+  })
+
+  ipcMain.handle('update-cover', (event, id, coverImage) => {
+    return updateBookCover(id, coverImage)
   })
   
   ipcMain.handle('scan-folder', async (event, folderPath) => {
