@@ -48,7 +48,8 @@ export function BookCard({ book, onSelect, onRemove }: Props) {
 
     async function generateCover() {
       try {
-        const loadingTask = pdfjs.getDocument(`file://${book.filepath}`);
+        const safePath = book.filepath.replace(/\\/g, "/");
+        const loadingTask = pdfjs.getDocument(`media:///${safePath}`);
         pdfDoc = await loadingTask.promise;
         const page = await pdfDoc.getPage(1);
 

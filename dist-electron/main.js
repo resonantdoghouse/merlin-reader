@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, protocol, BrowserWindow, net, ipcMain } from "electron";
 import path$1 from "node:path";
 import Database from "better-sqlite3";
 import path from "path";
@@ -69,6 +69,9 @@ process.env.DIST = DIST;
 process.env.VITE_PUBLIC = VITE_PUBLIC;
 let win;
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
+protocol.registerSchemesAsPrivileged([
+  { scheme: "media", privileges: { secure: true, standard: true, supportFetchAPI: true, bypassCSP: true } }
+]);
 function createWindow() {
   win = new BrowserWindow({
     title: "Merlin Reader",
@@ -78,7 +81,7 @@ function createWindow() {
     height: 800,
     webPreferences: {
       preload: path$1.join(__dirname$1, "preload.mjs"),
-      webSecurity: false
+      webSecurity: true
     },
     // Dark theme frame
     backgroundColor: "#1a1a1a"
@@ -105,6 +108,30 @@ app.on("activate", () => {
   }
 });
 app.whenReady().then(() => {
+  protocol.handle("media", (request) => {
+    let urlPath = request.url.replace("media://", "");
+    urlPath = decodeURIComponent(urlPath);
+    if (urlPath.startsWith("/") && /^\/[a-zA-Z]:/.test(urlPath)) {
+      urlPath = urlPath.slice(1);
+    }
+    if (/^[a-zA-Z]\//.test(urlPath)) {
+      urlPath = urlPath[0] + ":" + urlPath.slice(1);
+    }
+    console.log("Media Protocol Request:", {
+      original: request.url,
+      processed: urlPath
+    });
+    try {
+      const normalizedPath = path$1.normalize(urlPath);
+      const forwardSlashes = normalizedPath.replace(/\\/g, "/");
+      const finalUrl = `file:///${forwardSlashes}`;
+      console.log("Fetching:", finalUrl);
+      return net.fetch(finalUrl);
+    } catch (e) {
+      console.error("Media protocol error:", e);
+      throw e;
+    }
+  });
   try {
     initDB();
   } catch (err) {

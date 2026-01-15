@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, protocol, net } from 'electron'
 import path from 'node:path'
 import os from 'node:os'
 import { initDB, getLibrary, addBook, removeBook, updateProgress, updateBookMeta, updateBookCover } from './db'
@@ -26,6 +26,11 @@ let win: BrowserWindow | null
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
+// Register the media scheme as privileged
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'media', privileges: { secure: true, standard: true, supportFetchAPI: true, bypassCSP: true } }
+])
+
 function createWindow() {
   win = new BrowserWindow({
     title: 'Merlin Reader',
@@ -34,7 +39,7 @@ function createWindow() {
     height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
-      webSecurity: false
+      webSecurity: true
     },
     // Dark theme frame
     backgroundColor: '#1a1a1a',
@@ -69,6 +74,43 @@ app.on('activate', () => {
 })
 
 app.whenReady().then(() => {
+  
+  // Handle media protocol
+  protocol.handle('media', (request) => {
+    let urlPath = request.url.replace('media://', '')
+    
+    // Decode first
+    urlPath = decodeURIComponent(urlPath)
+
+    // Handle 3-slash URLs (media:///C:/...) -> /C:/...
+    // We want to strip the leading slash if it precedes a drive letter
+    if (urlPath.startsWith('/') && /^\/[a-zA-Z]:/.test(urlPath)) {
+        urlPath = urlPath.slice(1)
+    }
+    
+    // Handle missing colon case (media://c/...) -> c/Users...
+    // If it starts with drive letter char + slash, inject colon
+    if (/^[a-zA-Z]\//.test(urlPath)) {
+        urlPath = urlPath[0] + ':' + urlPath.slice(1)
+    }
+
+    console.log('Media Protocol Request:', {
+        original: request.url,
+        processed: urlPath
+    })
+
+    try {
+        const normalizedPath = path.normalize(urlPath)
+        const forwardSlashes = normalizedPath.replace(/\\/g, '/')
+        const finalUrl = `file:///${forwardSlashes}`
+        console.log('Fetching:', finalUrl)
+        
+        return net.fetch(finalUrl)
+    } catch (e) {
+        console.error('Media protocol error:', e)
+        throw e
+    }
+  })
 
   try {
     initDB()

@@ -217,7 +217,7 @@ export function ExcaliburReader({
         onScroll={onScroll}
       >
         <Document
-          file={`file://${book.filepath}`}
+          file={`media:///${book.filepath.replace(/\\/g, "/")}`}
           onLoadSuccess={onDocumentLoadSuccess}
           className={`shadow-2xl transition-transform duration-300 ${
             isDarkMode ? "brightness-[0.8] contrast-[1.2]" : ""
