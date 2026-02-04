@@ -131,7 +131,7 @@ export function ExcaliburReader({
         isDarkMode ? "bg-gray-900 text-white" : "bg-gray-100 text-black"
       }`}
     >
-      {/* Zen Mode Hover Trigger Zone */}
+      {/* Arcane Focus (Fullscreen) Hover Trigger Zone */}
       {isFullscreen && !isToolbarPinned && (
         <div
           className="fixed top-0 left-0 right-0 h-4 z-50 bg-transparent"
@@ -146,11 +146,9 @@ export function ExcaliburReader({
         className={`flex items-center justify-between p-4 shadow-md z-40 transition-transform duration-300 ${
           isDarkMode ? "bg-gray-800" : "bg-white"
         } ${
-          isFullscreen
+          isFullscreen && !isToolbarPinned
             ? "fixed top-0 left-0 right-0 " +
-              (isToolbarPinned || isHoveringToolbar
-                ? "translate-y-0"
-                : "-translate-y-full")
+              (isHoveringToolbar ? "translate-y-0" : "-translate-y-full")
             : ""
         }`}
       >
@@ -207,7 +205,7 @@ export function ExcaliburReader({
           <button
             onClick={toggleFullscreen}
             className="p-2 rounded-full hover:bg-gray-500/20"
-            title={isFullscreen ? "Exit Zen Mode" : "Enter Zen Mode"}
+            title={isFullscreen ? "Exit Arcane Focus" : "Enter Arcane Focus"}
           >
             {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
           </button>
