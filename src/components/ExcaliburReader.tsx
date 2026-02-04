@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import {
   ArrowLeft,
@@ -8,6 +8,11 @@ import {
   Sun,
   Settings,
   RotateCw,
+  Maximize,
+  Minimize,
+  Pin,
+  PinOff,
+  Loader2,
 } from "lucide-react";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -16,7 +21,7 @@ import "react-pdf/dist/Page/TextLayer.css";
 // Configure worker
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
+  import.meta.url,
 ).toString();
 
 interface Props {
@@ -34,12 +39,16 @@ export function ExcaliburReader({
 }: Props) {
   const [numPages, setNumPages] = useState<number>(book.total_pages || 0);
   const [pageNumber, setPageNumber] = useState<number>(
-    book.last_read_page || 1
+    book.last_read_page || 1,
   );
   const [scale, setScale] = useState(1.0);
   const [rotation, setRotation] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isToolbarPinned, setIsToolbarPinned] = useState(true);
+  const [isHoveringToolbar, setIsHoveringToolbar] = useState(false);
+  const readerRef = useRef<HTMLDivElement>(null);
 
   // Update backend when page changes
   useEffect(() => {
@@ -59,6 +68,34 @@ export function ExcaliburReader({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [numPages]);
+
+  // Scroll to top on page change
+  useEffect(() => {
+    if (readerRef.current) {
+      readerRef.current.scrollTop = 0;
+    }
+  }, [pageNumber]);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
 
   // Improved Scroll Handler with debounce/lock could go here,
   // but for "Next Page on Scroll", effectively we want:
@@ -90,14 +127,31 @@ export function ExcaliburReader({
 
   return (
     <div
-      className={`flex flex-col h-screen ${
+      className={`flex flex-col h-screen relative ${
         isDarkMode ? "bg-gray-900 text-white" : "bg-gray-100 text-black"
       }`}
     >
+      {/* Zen Mode Hover Trigger Zone */}
+      {isFullscreen && !isToolbarPinned && (
+        <div
+          className="fixed top-0 left-0 right-0 h-4 z-50 bg-transparent"
+          onMouseEnter={() => setIsHoveringToolbar(true)}
+        />
+      )}
+
       {/* Toolbar */}
       <div
-        className={`flex items-center justify-between p-4 shadow-md z-10 ${
+        onMouseEnter={() => setIsHoveringToolbar(true)}
+        onMouseLeave={() => setIsHoveringToolbar(false)}
+        className={`flex items-center justify-between p-4 shadow-md z-40 transition-transform duration-300 ${
           isDarkMode ? "bg-gray-800" : "bg-white"
+        } ${
+          isFullscreen
+            ? "fixed top-0 left-0 right-0 " +
+              (isToolbarPinned || isHoveringToolbar
+                ? "translate-y-0"
+                : "-translate-y-full")
+            : ""
         }`}
       >
         <div className="flex items-center gap-4">
@@ -149,6 +203,30 @@ export function ExcaliburReader({
           >
             <RotateCw size={20} />
           </button>
+
+          <button
+            onClick={toggleFullscreen}
+            className="p-2 rounded-full hover:bg-gray-500/20"
+            title={isFullscreen ? "Exit Zen Mode" : "Enter Zen Mode"}
+          >
+            {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+          </button>
+
+          {isFullscreen && (
+            <button
+              onClick={() => setIsToolbarPinned(!isToolbarPinned)}
+              className={`p-2 rounded-full hover:bg-gray-500/20 ${
+                isToolbarPinned ? "bg-merlin-500 text-white" : ""
+              }`}
+              title={
+                isToolbarPinned
+                  ? "Unpin Toolbar (Auto-hide)"
+                  : "Pin Toolbar (Always Visible)"
+              }
+            >
+              {isToolbarPinned ? <Pin size={20} /> : <PinOff size={20} />}
+            </button>
+          )}
 
           <button
             onClick={toggleDarkMode}
@@ -213,7 +291,8 @@ export function ExcaliburReader({
 
       {/* Reader Area */}
       <div
-        className="flex-1 overflow-auto flex justify-center p-8 scroll-smooth"
+        ref={readerRef}
+        className="flex-1 overflow-auto flex justify-center px-8 pb-8 pt-0 scroll-smooth"
         onScroll={onScroll}
       >
         <Document
@@ -228,7 +307,17 @@ export function ExcaliburReader({
             pageNumber={pageNumber}
             scale={scale}
             renderTextLayer={false}
-            className={isDarkMode ? "invert hue-rotate-180" : ""}
+            className={`min-h-[600px] ${
+              isDarkMode ? "invert hue-rotate-180" : ""
+            }`}
+            loading={
+              <div
+                className="flex items-center justify-center text-gray-400"
+                style={{ height: 600 * scale, width: 450 * scale }}
+              >
+                <Loader2 className="animate-spin" size={48} />
+              </div>
+            }
           />
         </Document>
       </div>
