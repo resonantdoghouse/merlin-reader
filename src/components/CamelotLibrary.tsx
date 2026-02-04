@@ -30,7 +30,7 @@ export function CamelotLibrary({
   const [sortBy, setSortBy] = useState<"recent" | "title" | "added">("recent");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [gridSize, setGridSize] = useState<"small" | "medium" | "large">(
-    "medium"
+    "medium",
   );
   const [isDragging, setIsDragging] = useState(false);
 
@@ -186,6 +186,9 @@ export function CamelotLibrary({
         <h2 className="text-xl font-bold flex items-center gap-2">
           <BookIcon className="text-merlin-500" />
           Library Configured (`RoundTable`)
+          <span className="text-sm font-normal text-merlin-100/50 ml-2">
+            ({books.filter((b) => !b.is_removed).length} Books)
+          </span>
         </h2>
 
         {/* Search and Sort Controls */}
@@ -371,7 +374,7 @@ export function CamelotLibrary({
                   <span>
                     Progress:{" "}
                     {Math.round(
-                      (book.last_read_page / (book.total_pages || 1)) * 100
+                      (book.last_read_page / (book.total_pages || 1)) * 100,
                     )}
                     %
                   </span>
