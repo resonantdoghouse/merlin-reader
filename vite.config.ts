@@ -28,4 +28,16 @@ export default defineConfig({
       renderer: {},
     }),
   ],
+  build: {
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'pdf-vendor': ['react-pdf', 'pdfjs-dist'],
+          'ui-vendor': ['lucide-react'],
+        },
+      },
+    },
+  },
 })
