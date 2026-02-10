@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Book as BookIcon, Trash2, Heart, Tag } from "lucide-react";
+import { Book as BookIcon, Trash2, Heart } from "lucide-react";
 import { pdfjs } from "react-pdf";
 
 // Ensure worker is set (it might be set in ExcaliburReader, but safe to set here too if not)

@@ -1,4 +1,4 @@
-import { useState, type DragEvent, useMemo } from "react";
+import { useState, useEffect, type DragEvent, useMemo } from "react";
 import {
   Book as BookIcon,
   FolderOpen,
@@ -44,6 +44,18 @@ export function CamelotLibrary({
   const [editingBookId, setEditingBookId] = useState<number | null>(null);
   const [tagInput, setTagInput] = useState("");
 
+  // Debounced Search State
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Fuse instance
   const fuse = useMemo(() => {
     return new Fuse(books, {
@@ -61,8 +73,8 @@ export function CamelotLibrary({
       result = result.filter((b) => b.is_favorite);
     }
 
-    if (searchQuery) {
-      const searchResults = fuse.search(searchQuery);
+    if (debouncedQuery) {
+      const searchResults = fuse.search(debouncedQuery);
       result = searchResults
         .map((r) => r.item)
         .filter(
@@ -71,7 +83,7 @@ export function CamelotLibrary({
     }
 
     return result.sort((a, b) => {
-      if (searchQuery) return 0; // Keep search relevance order if searching
+      if (debouncedQuery) return 0; // Keep search relevance order if searching
 
       if (sortBy === "title") {
         return a.title.localeCompare(b.title);
@@ -89,7 +101,7 @@ export function CamelotLibrary({
         return dateB - dateA;
       }
     });
-  }, [books, searchQuery, sortBy, showFavoritesOnly, fuse]);
+  }, [books, debouncedQuery, sortBy, showFavoritesOnly, fuse]);
 
   const recentBook = books
     .filter((b) => !b.is_removed)
@@ -231,7 +243,7 @@ export function CamelotLibrary({
         </div>
       )}
 
-      {recentBook && !searchQuery && !showFavoritesOnly && (
+      {recentBook && !debouncedQuery && !showFavoritesOnly && (
         <div className="mb-12 relative overflow-hidden p-8 rounded-3xl bg-gradient-to-br from-merlin-900/90 to-merlin-900/50 border border-merlin-500/20 backdrop-blur-md shadow-2xl flex gap-8 items-end group">
           {/* Background Glow */}
           <div className="absolute -top-24 -right-24 w-64 h-64 bg-merlin-500/10 rounded-full blur-3xl group-hover:bg-merlin-500/20 transition-colors duration-500" />
@@ -451,7 +463,7 @@ export function CamelotLibrary({
           ))}
 
           {/* Add Book Card */}
-          {!searchQuery && !showFavoritesOnly && (
+          {!debouncedQuery && !showFavoritesOnly && (
             <div
               className="flex flex-col items-center justify-center w-full aspect-[2/3] border-2 border-dashed border-merlin-500/30 rounded-lg hover:border-merlin-500 hover:bg-merlin-500/5 transition-all cursor-pointer text-merlin-500/50 hover:text-merlin-500"
               onClick={() => {
@@ -586,7 +598,7 @@ export function CamelotLibrary({
               </div>
             </div>
           ))}
-          {!searchQuery && !showFavoritesOnly && (
+          {!debouncedQuery && !showFavoritesOnly && (
             <div className="p-8 border-2 border-dashed border-merlin-500/30 rounded-xl flex items-center justify-center gap-4 text-merlin-500/50">
               <Plus size={24} />
               <span>Drag PDF anywhere to add</span>
