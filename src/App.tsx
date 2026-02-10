@@ -6,10 +6,21 @@ function App() {
   const [view, setView] = useState<"library" | "reader">("library");
   const [currentBook, setCurrentBook] = useState<Book | null>(null);
   const [books, setBooks] = useState<Book[]>([]);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // const [isDarkMode, setIsDarkMode] = useState(false); // Moved to preferences
+
+  const [preferences, setPreferences] = useState<{
+    zoom: number;
+    isDarkMode: boolean;
+    zenModeNavbar: boolean;
+  }>({
+    zoom: 1.0,
+    isDarkMode: false,
+    zenModeNavbar: true,
+  });
 
   useEffect(() => {
     loadLibrary();
+    loadPreferences();
   }, []);
 
   async function loadLibrary() {
@@ -21,6 +32,25 @@ function App() {
     }
   }
 
+  async function loadPreferences() {
+    try {
+      const stored = await window.merlin.invoke("get-settings");
+      setPreferences((prev) => ({
+        ...prev,
+        zoom: stored.zoom ? parseFloat(stored.zoom) : prev.zoom,
+        isDarkMode: stored.isDarkMode === "true",
+        zenModeNavbar: stored.zenModeNavbar !== "false", // Default true
+      }));
+    } catch (e) {
+      console.error("Failed to load preferences", e);
+    }
+  }
+
+  const updatePreference = (key: string, value: any) => {
+    setPreferences((prev) => ({ ...prev, [key]: value }));
+    window.merlin.invoke("set-setting", key, String(value));
+  };
+ 
   // Reload library when we get focus or added books?
   // We can listen for messages if we wanted, or just reload on view change.
   // Ideally, after adding a book via drag n drop, we should reload.
@@ -84,8 +114,12 @@ function App() {
           setView("library");
           setCurrentBook(null);
         }}
-        isDarkMode={isDarkMode}
-        toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        isDarkMode={preferences.isDarkMode}
+        toggleDarkMode={() =>
+          updatePreference("isDarkMode", !preferences.isDarkMode)
+        }
+        preferences={preferences}
+        updatePreference={updatePreference}
       />
     );
   }

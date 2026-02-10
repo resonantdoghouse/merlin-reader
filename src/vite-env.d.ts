@@ -29,6 +29,8 @@ interface Window {
     invoke(channel: 'toggle-favorite', id: number): Promise<void>;
     invoke(channel: 'update-tags', id: number, tags: string): Promise<void>;
     invoke(channel: 'select-folder'): Promise<string | null>;
+    invoke(channel: 'get-settings'): Promise<Record<string, string>>;
+    invoke(channel: 'set-setting', key: string, value: string): Promise<void>;
     on(channel: string, listener: (...args: any[]) => void): () => void;
     off(channel: string, listener: (...args: any[]) => void): void;
   }

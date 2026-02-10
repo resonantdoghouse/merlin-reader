@@ -45,6 +45,14 @@ export function initDB() {
       );
     if (!columnNames.includes("tags"))
       db.exec("ALTER TABLE library_books ADD COLUMN tags TEXT");
+
+    // Settings table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )
+    `);
   } catch (err) {
     console.error("Migration error:", err);
   }
@@ -55,6 +63,28 @@ function getDB() {
     throw new Error("Database not initialized");
   }
   return db;
+}
+
+export function getSetting(key: string): string | null {
+  const stmt = getDB().prepare("SELECT value FROM settings WHERE key = ?");
+  const result = stmt.get(key) as { value: string } | undefined;
+  return result ? result.value : null;
+}
+
+export function setSetting(key: string, value: string) {
+  const stmt = getDB().prepare(
+    "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+  );
+  return stmt.run(key, value);
+}
+
+export function getAllSettings(): Record<string, string> {
+  const stmt = getDB().prepare("SELECT key, value FROM settings");
+  const rows = stmt.all() as { key: string; value: string }[];
+  return rows.reduce((acc, row) => {
+    acc[row.key] = row.value;
+    return acc;
+  }, {} as Record<string, string>);
 }
 
 export interface BookMeta {

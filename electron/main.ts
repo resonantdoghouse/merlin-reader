@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, protocol, net } from 'electron'
 import path from 'node:path'
 import os from 'node:os'
-import { initDB, getLibrary, addBook, removeBook, updateProgress, updateBookMeta, updateBookCover, toggleFavorite, updateTags, type BookMeta } from './db'
+import { initDB, getLibrary, addBook, removeBook, updateProgress, updateBookMeta, updateBookCover, toggleFavorite, updateTags, getAllSettings, setSetting, type BookMeta } from './db'
 import fs from 'fs/promises'
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -250,6 +250,23 @@ app.whenReady().then(() => {
     } catch (error) {
       console.error('Main process: Error in select-folder:', error)
       throw error
+    }
+  })
+
+  ipcMain.handle('get-settings', () => {
+    try {
+      return getAllSettings()
+    } catch (err) {
+      console.error('Failed to get settings:', err)
+      return {}
+    }
+  })
+
+  ipcMain.handle('set-setting', (event, key, value) => {
+    try {
+      return setSetting(key, value)
+    } catch (err) {
+      console.error('Failed to set setting:', err)
     }
   })
 })

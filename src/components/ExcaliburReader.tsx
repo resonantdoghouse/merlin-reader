@@ -27,8 +27,14 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 interface Props {
   book: Book;
   onBack: () => void;
-  isDarkMode: boolean;
+  isDarkMode: boolean; // Kept for backward compat or if passed from pref
   toggleDarkMode: () => void;
+  preferences: {
+    zoom: number;
+    isDarkMode: boolean;
+    zenModeNavbar: boolean;
+  };
+  updatePreference: (key: string, value: any) => void;
 }
 
 export function ExcaliburReader({
@@ -36,19 +42,28 @@ export function ExcaliburReader({
   onBack,
   isDarkMode,
   toggleDarkMode,
+  preferences,
+  updatePreference,
 }: Props) {
   const [numPages, setNumPages] = useState<number>(book.total_pages || 0);
   const [pageNumber, setPageNumber] = useState<number>(
     book.last_read_page || 1,
   );
-  const [scale, setScale] = useState(1.0);
+  const [scale, setScale] = useState(preferences.zoom || 1.0);
   const [rotation, setRotation] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isToolbarPinned, setIsToolbarPinned] = useState(true);
   const [isHoveringToolbar, setIsHoveringToolbar] = useState(false);
   const readerRef = useRef<HTMLDivElement>(null);
+
+  // Debounce save scale
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      updatePreference("zoom", scale);
+    }, 1000); // 1s debounce
+    return () => clearTimeout(timer);
+  }, [scale, updatePreference]);
 
   // Update backend when page changes
   useEffect(() => {
@@ -132,7 +147,7 @@ export function ExcaliburReader({
       }`}
     >
       {/* Arcane Focus (Fullscreen) Hover Trigger Zone */}
-      {isFullscreen && !isToolbarPinned && (
+      {isFullscreen && !preferences.zenModeNavbar && (
         <div
           className="fixed top-0 left-0 right-0 h-4 z-50 bg-transparent"
           onMouseEnter={() => setIsHoveringToolbar(true)}
@@ -146,7 +161,7 @@ export function ExcaliburReader({
         className={`flex items-center justify-between p-4 shadow-md z-40 transition-transform duration-300 ${
           isDarkMode ? "bg-gray-800" : "bg-white"
         } ${
-          isFullscreen && !isToolbarPinned
+          isFullscreen && !preferences.zenModeNavbar
             ? "fixed top-0 left-0 right-0 " +
               (isHoveringToolbar ? "translate-y-0" : "-translate-y-full")
             : ""
@@ -212,17 +227,19 @@ export function ExcaliburReader({
 
           {isFullscreen && (
             <button
-              onClick={() => setIsToolbarPinned(!isToolbarPinned)}
+              onClick={() =>
+                updatePreference("zenModeNavbar", !preferences.zenModeNavbar)
+              }
               className={`p-2 rounded-full hover:bg-gray-500/20 ${
-                isToolbarPinned ? "bg-merlin-500 text-white" : ""
+                preferences.zenModeNavbar ? "bg-merlin-500 text-white" : ""
               }`}
               title={
-                isToolbarPinned
+                preferences.zenModeNavbar
                   ? "Unpin Toolbar (Auto-hide)"
                   : "Pin Toolbar (Always Visible)"
               }
             >
-              {isToolbarPinned ? <Pin size={20} /> : <PinOff size={20} />}
+              {preferences.zenModeNavbar ? <Pin size={20} /> : <PinOff size={20} />}
             </button>
           )}
 
@@ -266,23 +283,67 @@ export function ExcaliburReader({
             <Settings size={16} /> Preferences
           </h3>
 
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm">Auto-advance on scroll</span>
-            <button
-              onClick={() => setAutoAdvance(!autoAdvance)}
-              className={`w-10 h-5 rounded-full transition-colors relative ${
-                autoAdvance ? "bg-merlin-500" : "bg-gray-400"
-              }`}
-            >
-              <div
-                className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${
-                  autoAdvance ? "translate-x-5" : "translate-x-0"
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Dark Mode</span>
+              <button
+                onClick={() => updatePreference("isDarkMode", !isDarkMode)}
+                className={`w-10 h-5 rounded-full transition-colors relative ${
+                  isDarkMode ? "bg-merlin-500" : "bg-gray-400"
                 }`}
-              />
-            </button>
+              >
+                <div
+                  className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${
+                    isDarkMode ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Auto-advance</span>
+              <button
+                onClick={() => setAutoAdvance(!autoAdvance)}
+                className={`w-10 h-5 rounded-full transition-colors relative ${
+                  autoAdvance ? "bg-merlin-500" : "bg-gray-400"
+                }`}
+              >
+                <div
+                  className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${
+                    autoAdvance ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Zen Mode Navbar</span>
+              <button
+                onClick={() =>
+                  updatePreference(
+                    "zenModeNavbar",
+                    !preferences.zenModeNavbar,
+                  )
+                }
+                className={`w-10 h-5 rounded-full transition-colors relative ${
+                  preferences.zenModeNavbar
+                    ? "bg-merlin-500"
+                    : "bg-gray-400"
+                }`}
+              >
+                <div
+                  className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${
+                    preferences.zenModeNavbar
+                      ? "translate-x-5"
+                      : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
           </div>
-          <p className="text-xs opacity-60">
-            Automatically goes to the next page when you scroll to the bottom.
+
+          <p className="text-xs opacity-60 mt-4">
+            Customize your reading experience.
           </p>
         </div>
       )}
