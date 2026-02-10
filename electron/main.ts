@@ -1,7 +1,12 @@
 import { app, BrowserWindow, ipcMain, protocol, net } from 'electron'
 import path from 'node:path'
 import os from 'node:os'
-import { initDB, getLibrary, addBook, removeBook, updateProgress, updateBookMeta, updateBookCover } from './db'
+import { initDB, getLibrary, addBook, removeBook, updateProgress, updateBookMeta, updateBookCover, toggleFavorite, updateTags, type BookMeta } from './db'
+import fs from 'fs/promises'
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+// pdf-parse v2 usage
+const { PDFParse } = require('pdf-parse');
 
 import { fileURLToPath } from 'node:url'
 
@@ -73,6 +78,29 @@ app.on('activate', () => {
   }
 })
 
+async function extractMetadata(filepath: string): Promise<BookMeta> {
+    let parser;
+    try {
+        const dataBuffer = await fs.readFile(filepath);
+        parser = new PDFParse({ data: dataBuffer });
+        const result = await parser.getInfo();
+        const info = result.info || {};
+        
+        return {
+            author: info.Author || undefined,
+            subject: info.Subject || undefined,
+            keywords: info.Keywords || undefined
+        };
+    } catch (err) {
+        console.error("Failed to extract metadata for:", filepath, err);
+        return {};
+    } finally {
+        if (parser) {
+            await parser.destroy();
+        }
+    }
+}
+
 app.whenReady().then(() => {
   
   // Handle media protocol
@@ -129,9 +157,10 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('add-book', (event, filepath) => {
+  ipcMain.handle('add-book', async (event, filepath) => {
     const filename = path.basename(filepath)
-    return addBook(filepath, filename)
+    const meta = await extractMetadata(filepath);
+    return addBook(filepath, filename, 0, meta)
   })
 
   ipcMain.handle('remove-book', (event, id) => {
@@ -149,11 +178,18 @@ app.whenReady().then(() => {
   ipcMain.handle('update-cover', (event, id, coverImage) => {
     return updateBookCover(id, coverImage)
   })
+
+  ipcMain.handle('toggle-favorite', (event, id) => {
+      return toggleFavorite(id);
+  })
+
+  ipcMain.handle('update-tags', (event, id, tags) => {
+      return updateTags(id, tags);
+  })
   
   ipcMain.handle('scan-folder', async (event, folderPath) => {
     console.log('Main process: Starting scan-folder for:', folderPath)
     try {
-      const fs = await import('fs/promises')
       
       async function getFiles(dir: string): Promise<string[]> {
         try {
@@ -179,7 +215,8 @@ app.whenReady().then(() => {
           const filename = path.basename(pdf)
           // defaults
           try {
-              addBook(pdf, filename)
+              const meta = await extractMetadata(pdf);
+              addBook(pdf, filename, 0, meta)
               count++
           } catch (err) {
               console.error("Failed to add book:", pdf, err)

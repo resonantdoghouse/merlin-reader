@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { Book as BookIcon, Trash2 } from "lucide-react";
+import { Book as BookIcon, Trash2, Heart, Tag } from "lucide-react";
 import { pdfjs } from "react-pdf";
 
 // Ensure worker is set (it might be set in ExcaliburReader, but safe to set here too if not)
 if (!pdfjs.GlobalWorkerOptions.workerSrc) {
   pdfjs.GlobalWorkerOptions.workerSrc = new URL(
     "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url
+    import.meta.url,
   ).toString();
 }
 
@@ -14,9 +14,15 @@ interface Props {
   book: Book;
   onSelect: (book: Book) => void;
   onRemove: (id: number) => void;
+  onToggleFavorite: (id: number) => void;
 }
 
-export function BookCard({ book, onSelect, onRemove }: Props) {
+export function BookCard({
+  book,
+  onSelect,
+  onRemove,
+  onToggleFavorite,
+}: Props) {
   const [cover, setCover] = useState<string | null>(book.cover_image);
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -30,7 +36,7 @@ export function BookCard({ book, onSelect, onRemove }: Props) {
           observer.disconnect(); // Only need to trigger once
         }
       },
-      { rootMargin: "200px" } // Start loading slightly before it comes into view
+      { rootMargin: "200px" }, // Start loading slightly before it comes into view
     );
 
     if (cardRef.current) {
@@ -97,7 +103,7 @@ export function BookCard({ book, onSelect, onRemove }: Props) {
   return (
     <div ref={cardRef} className="group relative flex flex-col items-center">
       <div
-        className="w-full aspect-[2/3] bg-merlin-950 rounded-lg shadow-lg border border-merlin-500/10 mb-4 cursor-pointer hover:border-merlin-500 transition-colors flex items-center justify-center overflow-hidden relative"
+        className="w-full aspect-[2/3] bg-merlin-950 rounded-lg shadow-lg border border-merlin-500/10 mb-2 cursor-pointer hover:border-merlin-500 transition-colors flex items-center justify-center overflow-hidden relative"
         onClick={() => onSelect(book)}
       >
         <div className="absolute inset-x-0 bottom-0 h-1 bg-merlin-900/50 z-10">
@@ -106,7 +112,7 @@ export function BookCard({ book, onSelect, onRemove }: Props) {
             style={{
               width: `${Math.min(
                 100,
-                (book.last_read_page / (book.total_pages || 1)) * 100
+                (book.last_read_page / (book.total_pages || 1)) * 100,
               )}%`,
             }}
           />
@@ -126,23 +132,64 @@ export function BookCard({ book, onSelect, onRemove }: Props) {
         )}
 
         {/* Hover Actions */}
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex flex-col gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite(book.id);
+            }}
+            className={`p-2 rounded-full text-white shadow-md transition-colors ${book.is_favorite ? "bg-pink-500 hover:bg-pink-600" : "bg-merlin-900/80 hover:bg-merlin-500"}`}
+            title={
+              book.is_favorite ? "Remove from Favorites" : "Add to Favorites"
+            }
+          >
+            <Heart
+              size={16}
+              fill={book.is_favorite ? "currentColor" : "none"}
+            />
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
               onRemove(book.id);
             }}
-            className="p-2 bg-red-900/80 hover:bg-red-600 rounded-full text-white"
+            className="p-2 bg-red-900/80 hover:bg-red-600 rounded-full text-white shadow-md"
             title="Remove from Library"
           >
             <Trash2 size={16} />
           </button>
         </div>
+
+        {/* Author / Metadata Overlay on hover if no cover or just always? */}
+        {/* Let's put tags at bottom left */}
+        {book.tags && (
+          <div className="absolute bottom-2 left-2 flex flex-wrap gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20 max-w-[90%]">
+            {book.tags
+              .split(",")
+              .slice(0, 3)
+              .map((tag) => (
+                <span
+                  key={tag}
+                  className="text-[10px] bg-merlin-900/90 text-merlin-100 px-1.5 py-0.5 rounded border border-merlin-500/30 truncate max-w-[80px]"
+                >
+                  {tag.trim()}
+                </span>
+              ))}
+          </div>
+        )}
       </div>
 
-      <h3 className="text-center font-medium text-sm line-clamp-2 text-merlin-100 px-2 break-words w-full">
+      <h3
+        className="text-center font-medium text-sm line-clamp-2 text-merlin-100 px-2 break-words w-full"
+        title={book.title}
+      >
         {book.title}
       </h3>
+      {book.author && (
+        <p className="text-center text-xs text-merlin-100/50 line-clamp-1 w-full px-2">
+          {book.author}
+        </p>
+      )}
     </div>
   );
 }

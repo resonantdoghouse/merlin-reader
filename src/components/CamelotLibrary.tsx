@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from "react";
+import { useState, type DragEvent, useMemo } from "react";
 import {
   Book as BookIcon,
   FolderOpen,
@@ -10,8 +10,11 @@ import {
   Sparkles,
   Maximize2,
   Grid3X3,
+  Heart,
+  Tag,
 } from "lucide-react";
 import { BookCard } from "./BookCard";
+import Fuse from "fuse.js";
 
 interface Props {
   books: Book[];
@@ -27,22 +30,54 @@ export function CamelotLibrary({
   onAddFolder,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"recent" | "title" | "added">("recent");
+  const [sortBy, setSortBy] = useState<"recent" | "title" | "added" | "author">(
+    "recent",
+  );
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [gridSize, setGridSize] = useState<"small" | "medium" | "large">(
     "medium",
   );
   const [isDragging, setIsDragging] = useState(false);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+  // Tag Editing State
+  const [editingBookId, setEditingBookId] = useState<number | null>(null);
+  const [tagInput, setTagInput] = useState("");
+
+  // Fuse instance
+  const fuse = useMemo(() => {
+    return new Fuse(books, {
+      keys: ["title", "author", "keywords", "tags", "subject"],
+      threshold: 0.4,
+      ignoreLocation: true,
+    });
+  }, [books]);
 
   // Filter and Sort
-  const filteredBooks = books
-    .filter((b) => !b.is_removed)
-    .filter((b) => b.title.toLowerCase().includes(searchQuery.toLowerCase()))
-    .sort((a, b) => {
+  const filteredBooks = useMemo(() => {
+    let result = books.filter((b) => !b.is_removed);
+
+    if (showFavoritesOnly) {
+      result = result.filter((b) => b.is_favorite);
+    }
+
+    if (searchQuery) {
+      const searchResults = fuse.search(searchQuery);
+      result = searchResults
+        .map((r) => r.item)
+        .filter(
+          (b) => !b.is_removed && (showFavoritesOnly ? b.is_favorite : true),
+        );
+    }
+
+    return result.sort((a, b) => {
+      if (searchQuery) return 0; // Keep search relevance order if searching
+
       if (sortBy === "title") {
         return a.title.localeCompare(b.title);
+      } else if (sortBy === "author") {
+        return (a.author || "").localeCompare(b.author || "");
       } else if (sortBy === "added") {
-        // Fallback to ID which is effectively added time for now if added_at is just date
         return (
           new Date(b.added_at).getTime() - new Date(a.added_at).getTime() ||
           b.id - a.id
@@ -54,6 +89,7 @@ export function CamelotLibrary({
         return dateB - dateA;
       }
     });
+  }, [books, searchQuery, sortBy, showFavoritesOnly, fuse]);
 
   const recentBook = books
     .filter((b) => !b.is_removed)
@@ -89,6 +125,30 @@ export function CamelotLibrary({
         filteredBooks[Math.floor(Math.random() * filteredBooks.length)];
       onSelectBook(random);
     }
+  };
+
+  const handleOpenTagEditor = (book: Book) => {
+    setEditingBookId(book.id);
+    setTagInput(book.tags || "");
+  };
+
+  const handleSaveTags = async () => {
+    if (editingBookId !== null) {
+      await window.merlin.invoke("update-tags", editingBookId, tagInput);
+      setEditingBookId(null);
+      setTagInput("");
+    }
+  };
+
+  const handleToggleFavorite = async (id: number) => {
+    await window.merlin.invoke("toggle-favorite", id);
+    // Trigger reload is handled by App.tsx polling/refresh
+    // But for better UX we might want immediate local update or rely on parent to refresh
+    // Since props.books comes from parent, we wait for parent update.
+    // Ideally we'd have a callback to refresh library immediately.
+    // For now, next poll or manual refresh will pick it up.
+    // Actually, let's force a refresh if possible or just wait.
+    // App.tsx polls every 2s, so it should be quick.
   };
 
   const getGridCols = () => {
@@ -134,7 +194,44 @@ export function CamelotLibrary({
         </div>
       </header>
 
-      {recentBook && !searchQuery && (
+      {/* Tag Editor Modal */}
+      {editingBookId !== null && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-merlin-900 border border-merlin-500/50 rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-xl font-bold mb-4 text-white flex items-center gap-2">
+              <Tag size={20} className="text-merlin-500" />
+              Manage Tags
+            </h3>
+            <p className="text-merlin-100/60 text-sm mb-4">
+              Enter tags separated by commas (e.g., fantasy, epic, dragons)
+            </p>
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              className="w-full bg-merlin-950 border border-merlin-500/30 rounded-lg p-3 text-white focus:border-merlin-500 outline-none mb-6"
+              placeholder="tag1, tag2, tag3"
+              autoFocus
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setEditingBookId(null)}
+                className="px-4 py-2 rounded-lg hover:bg-merlin-800 text-merlin-100/70 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveTags}
+                className="px-4 py-2 rounded-lg bg-merlin-500 text-white font-medium hover:bg-merlin-400 transition-colors"
+              >
+                Save Tags
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {recentBook && !searchQuery && !showFavoritesOnly && (
         <div className="mb-12 relative overflow-hidden p-8 rounded-3xl bg-gradient-to-br from-merlin-900/90 to-merlin-900/50 border border-merlin-500/20 backdrop-blur-md shadow-2xl flex gap-8 items-end group">
           {/* Background Glow */}
           <div className="absolute -top-24 -right-24 w-64 h-64 bg-merlin-500/10 rounded-full blur-3xl group-hover:bg-merlin-500/20 transition-colors duration-500" />
@@ -182,21 +279,21 @@ export function CamelotLibrary({
       )}
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
         <h2 className="text-xl font-bold flex items-center gap-2">
           <BookIcon className="text-merlin-500" />
           Library Configured (`RoundTable`)
           <span className="text-sm font-normal text-merlin-100/50 ml-2">
-            ({books.filter((b) => !b.is_removed).length} Books)
+            ({filteredBooks.length} Books)
           </span>
         </h2>
 
         {/* Search and Sort Controls */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="relative group">
             <input
               type="text"
-              placeholder="Search titles..."
+              placeholder="Search titles, authors, keywords..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-merlin-900/50 border border-merlin-500/30 rounded-lg px-4 py-2 pl-10 focus:outline-none focus:border-merlin-500 transition-colors w-64"
@@ -206,6 +303,17 @@ export function CamelotLibrary({
               size={18}
             />
           </div>
+
+          <button
+            onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+            className={`p-2 rounded-lg border transition-colors ${showFavoritesOnly ? "bg-pink-500/20 border-pink-500 text-pink-500" : "bg-merlin-900/50 border-merlin-500/30 text-merlin-100/50 hover:text-pink-500"}`}
+            title="Show Favorites Only"
+          >
+            <Heart
+              size={20}
+              fill={showFavoritesOnly ? "currentColor" : "none"}
+            />
+          </button>
 
           <div className="flex bg-merlin-900/50 rounded-lg p-1 border border-merlin-500/30">
             <button
@@ -227,6 +335,16 @@ export function CamelotLibrary({
               }`}
             >
               Title
+            </button>
+            <button
+              onClick={() => setSortBy("author")}
+              className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
+                sortBy === "author"
+                  ? "bg-merlin-500 text-white"
+                  : "hover:bg-merlin-500/20 text-merlin-100/70"
+              }`}
+            >
+              Author
             </button>
             <button
               onClick={() => setSortBy("added")}
@@ -312,16 +430,28 @@ export function CamelotLibrary({
       {viewMode === "grid" ? (
         <div className={`grid ${getGridCols()} gap-6`}>
           {filteredBooks.map((book) => (
-            <BookCard
-              key={book.id}
-              book={book}
-              onSelect={onSelectBook}
-              onRemove={onRemoveBook}
-            />
+            <div key={book.id} className="relative group">
+              <BookCard
+                book={book}
+                onSelect={onSelectBook}
+                onRemove={onRemoveBook}
+                onToggleFavorite={handleToggleFavorite}
+              />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenTagEditor(book);
+                }}
+                className="absolute top-2 left-2 p-2 rounded-full bg-merlin-900/80 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-merlin-500 z-30"
+                title="Edit Tags"
+              >
+                <Tag size={14} />
+              </button>
+            </div>
           ))}
 
           {/* Add Book Card */}
-          {!searchQuery && (
+          {!searchQuery && !showFavoritesOnly && (
             <div
               className="flex flex-col items-center justify-center w-full aspect-[2/3] border-2 border-dashed border-merlin-500/30 rounded-lg hover:border-merlin-500 hover:bg-merlin-500/5 transition-all cursor-pointer text-merlin-500/50 hover:text-merlin-500"
               onClick={() => {
@@ -356,16 +486,44 @@ export function CamelotLibrary({
               </div>
 
               <div className="flex-1 min-w-0">
-                <h3
-                  className="text-lg font-bold truncate cursor-pointer hover:text-merlin-400 transition-colors"
-                  onClick={() => onSelectBook(book)}
-                >
-                  {book.title}
-                </h3>
-                <p className="text-sm text-merlin-100/50 truncate flex items-center gap-2">
-                  <FileText size={14} />
+                <div className="flex items-center gap-2">
+                  <h3
+                    className="text-lg font-bold truncate cursor-pointer hover:text-merlin-400 transition-colors"
+                    onClick={() => onSelectBook(book)}
+                  >
+                    {book.title}
+                  </h3>
+                  {book.is_favorite && (
+                    <Heart
+                      size={14}
+                      className="text-pink-500"
+                      fill="currentColor"
+                    />
+                  )}
+                </div>
+
+                {book.author && (
+                  <p className="text-sm text-merlin-100/70">{book.author}</p>
+                )}
+
+                <p className="text-xs text-merlin-100/50 truncate flex items-center gap-2 mt-1">
+                  <FileText size={12} />
                   {book.filepath}
                 </p>
+
+                {book.tags && (
+                  <div className="flex gap-2 mt-2">
+                    {book.tags.split(",").map((tag) => (
+                      <span
+                        key={tag}
+                        className="text-[10px] bg-merlin-900/80 border border-merlin-500/20 px-1.5 py-0.5 rounded text-merlin-100/70"
+                      >
+                        {tag.trim()}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 <div className="mt-2 flex items-center gap-4 text-xs text-merlin-100/40">
                   <span>
                     Added: {new Date(book.added_at).toLocaleDateString()}
@@ -382,6 +540,33 @@ export function CamelotLibrary({
               </div>
 
               <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenTagEditor(book);
+                  }}
+                  className="p-2 rounded-lg bg-merlin-900/50 text-merlin-100/50 hover:bg-merlin-500/20 hover:text-merlin-100 transition-colors"
+                  title="Edit Tags"
+                >
+                  <Tag size={20} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleFavorite(book.id);
+                  }}
+                  className={`p-2 rounded-lg transition-colors ${book.is_favorite ? "bg-pink-500/20 text-pink-500" : "bg-merlin-900/50 text-merlin-100/50 hover:bg-pink-500/10 hover:text-pink-500"}`}
+                  title={
+                    book.is_favorite
+                      ? "Remove from Favorites"
+                      : "Add to Favorites"
+                  }
+                >
+                  <Heart
+                    size={20}
+                    fill={book.is_favorite ? "currentColor" : "none"}
+                  />
+                </button>
                 <button
                   onClick={() => onSelectBook(book)}
                   className="px-4 py-2 rounded-lg bg-merlin-500 text-white font-medium hover:bg-merlin-400 transition-colors text-sm"
@@ -401,7 +586,7 @@ export function CamelotLibrary({
               </div>
             </div>
           ))}
-          {!searchQuery && (
+          {!searchQuery && !showFavoritesOnly && (
             <div className="p-8 border-2 border-dashed border-merlin-500/30 rounded-xl flex items-center justify-center gap-4 text-merlin-500/50">
               <Plus size={24} />
               <span>Drag PDF anywhere to add</span>
