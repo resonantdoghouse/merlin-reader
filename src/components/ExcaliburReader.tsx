@@ -73,10 +73,18 @@ export function ExcaliburReader({
   // Keyboard Navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const scrollAmount = 300; // Pixels to scroll
+
       if (e.key === "ArrowRight") {
         setPageNumber((prev) => Math.min(numPages || Infinity, prev + 1));
       } else if (e.key === "ArrowLeft") {
         setPageNumber((prev) => Math.max(1, prev - 1));
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        readerRef.current?.scrollBy({ top: scrollAmount, behavior: "smooth" });
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        readerRef.current?.scrollBy({ top: -scrollAmount, behavior: "smooth" });
       }
     };
 
@@ -239,7 +247,11 @@ export function ExcaliburReader({
                   : "Pin Toolbar (Always Visible)"
               }
             >
-              {preferences.zenModeNavbar ? <Pin size={20} /> : <PinOff size={20} />}
+              {preferences.zenModeNavbar ? (
+                <Pin size={20} />
+              ) : (
+                <PinOff size={20} />
+              )}
             </button>
           )}
 
@@ -320,15 +332,10 @@ export function ExcaliburReader({
               <span className="text-sm">Zen Mode Navbar</span>
               <button
                 onClick={() =>
-                  updatePreference(
-                    "zenModeNavbar",
-                    !preferences.zenModeNavbar,
-                  )
+                  updatePreference("zenModeNavbar", !preferences.zenModeNavbar)
                 }
                 className={`w-10 h-5 rounded-full transition-colors relative ${
-                  preferences.zenModeNavbar
-                    ? "bg-merlin-500"
-                    : "bg-gray-400"
+                  preferences.zenModeNavbar ? "bg-merlin-500" : "bg-gray-400"
                 }`}
               >
                 <div

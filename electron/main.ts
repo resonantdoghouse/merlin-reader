@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, net } from 'electron'
+import { app, BrowserWindow, ipcMain, protocol, net, shell } from 'electron'
 import path from 'node:path'
 import os from 'node:os'
 import { initDB, getLibrary, addBook, removeBook, updateProgress, updateBookMeta, updateBookCover, toggleFavorite, updateTags, getAllSettings, setSetting, type BookMeta } from './db'
@@ -54,6 +54,23 @@ function createWindow() {
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
   })
+  
+  // Handle external links (e.g. from PDF)
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https:') || url.startsWith('http:')) {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    return { action: 'allow' };
+  });
+
+  // Handle in-page navigation (links without target="_blank")
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url.startsWith('https:') || url.startsWith('http:')) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
